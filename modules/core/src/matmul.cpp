@@ -693,8 +693,8 @@ static void GEMMStore_64fc( const Complexd* c_data, size_t c_step,
 
 #ifdef HAVE_CLAMDBLAS
 
-static bool ocl_gemm( InputArray matA, InputArray matB, double alpha,
-                      InputArray matC, double beta, OutputArray matD, int flags )
+static bool ocl_blas_gemm( InputArray matA, InputArray matB, double alpha,
+                           InputArray matC, double beta, OutputArray matD, int flags )
 {
     int type = matA.type(), esz = CV_ELEM_SIZE(type);
     bool haveC = matC.kind() != cv::_InputArray::NONE;
@@ -775,6 +775,94 @@ static bool ocl_gemm( InputArray matA, InputArray matB, double alpha,
 
 #endif
 
+#ifdef HAVE_OPENCL
+
+static bool ocl_gemm( InputArray matA, InputArray matB, double alpha,
+                      InputArray matC, double beta, OutputArray matD, int flags )
+{
+    const ocl::Device & dev = ocl::Device::getDefault();
+    int type = matA.type(), depth = CV_MAT_DEPTH(type);
+    bool haveC = matC.kind() != cv::_InputArray::NONE;
+    Size sizeA = matA.size(), sizeB = matB.size(), sizeC = haveC ? matC.size() : Size(0, 0);
+    bool atrans = (flags & GEMM_1_T) != 0, btrans = (flags & GEMM_2_T) != 0,
+        ctrans = (flags & GEMM_3_T) != 0, doubleSupport = dev.doubleFPConfig() > 0,
+        haveAlpha = std::fabs(alpha) >= DBL_EPSILON, haveBeta = std::fabs(beta) >= DBL_EPSILON,
+        alphaIsOne = std::fabs(alpha - 1.0) < DBL_EPSILON, betaIsOne = std::fabs(beta - 1.0) < DBL_EPSILON;
+
+    if (!doubleSupport && depth == CV_64F)
+        return false;
+
+    if (atrans)
+        sizeA = Size(sizeA.height, sizeA.width);
+    if (btrans)
+        sizeB = Size(sizeB.height, sizeB.width);
+    if (haveC && ctrans)
+        sizeC = Size(sizeC.height, sizeC.width);
+
+    Size sizeD(sizeB.width, sizeA.height);
+
+    CV_Assert( matB.type() == type && (!haveC || matC.type() == type) );
+    CV_Assert( sizeA.width == sizeB.height && (!haveC || sizeC == sizeD) );
+
+    if (!(haveAlpha || haveBeta))
+    {
+        matD.setTo(Scalar::all(0));
+        return true;
+    }
+    if (!haveBeta)
+        haveC = false;
+    if (!haveAlpha)
+    {
+        if (ctrans)
+        {
+            cv::transpose(matC, matD);
+
+            if (!betaIsOne)
+                cv::multiply(matD, beta, matD);
+        }
+        else
+        {
+            if (betaIsOne)
+                matC.copyTo(matD);
+            else
+                cv::multiply(matC, beta, matD);
+        }
+
+        return true;
+    }
+
+    const int blocksize0 = 16, blocksize1 = 16;
+
+    ocl::Kernel k("gemm", ocl::core::gemm_oclsrc,
+        format("-D T=%s%s%s%s%s%s%s%s -D BLOCK_SIZE_0=%d -D BLOCK_SIZE_1=%d",
+            ocl::typeToStr(depth), doubleSupport ? " -D DOUBLE_SUPPORT" : "",
+            haveC ? " -D HAVE_C" : "", alphaIsOne ? "" : " -D HAVE_ALPHA",
+            betaIsOne ? "" : " -D HAVE_BETA", atrans ? " -D TRANS_A" : "",
+            btrans ? " -D TRANS_B" : "", ctrans ? " -D TRANS_C" : "",
+            blocksize0, blocksize1));
+
+    if (k.empty())
+        return false;
+
+    UMat A = matA.getUMat(), B = matB.getUMat(), C = matC.getUMat(), D = matD.getUMat();
+
+    ocl::KernelArg aarg = ocl::KernelArg::ReadOnly(A),
+        barg = ocl::KernelArg::ReadOnly(B),
+        carg = ocl::KernelArg::ReadOnly(C),
+        darg = ocl::KernelArg::ReadOnly(D);
+
+    if (haveC)
+        k.args(aarg, barg, carg, darg, (float)alpha, (float)beta);
+    else
+        k.args(aarg, barg, darg, (float)alpha);
+
+    size_t globalsize[2] = { sizeD.width, (sizeD.height + blocksize1 - 1) / blocksize1 },
+        localsize[2] = { blocksize0, 1 };
+    return k.run(2, globalsize, localsize, false);
+}
+
+#endif
+
 }
 
 void cv::gemm( InputArray matA, InputArray matB, double alpha,
@@ -782,8 +870,10 @@ void cv::gemm( InputArray matA, InputArray matB, double alpha,
 {
 #ifdef HAVE_CLAMDBLAS
     CV_OCL_RUN(ocl::haveAmdBlas() && matA.dims() <= 2 && matB.dims() <= 2 && matC.dims() <= 2 && _matD.isUMat(),
-            ocl_gemm(matA, matB, alpha, matC, beta, _matD, flags))
+            ocl_blas_gemm(matA, matB, alpha, matC, beta, _matD, flags))
 #endif
+    CV_OCL_RUN(matA.dims() <= 2 && matB.dims() <= 2 && matC.dims() <= 2 && _matD.isUMat(),
+            ocl_gemm(matA, matB, alpha, matC, beta, _matD, flags))
 
     const int block_lin_size = 128;
     const int block_size = block_lin_size * block_lin_size;

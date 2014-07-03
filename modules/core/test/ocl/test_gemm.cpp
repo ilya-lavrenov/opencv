@@ -80,12 +80,12 @@ PARAM_TEST_CASE(Gemm,
         use_roi = GET_PARAM(4);
 
         flags = 0;
-        if (GET_PARAM(1))
-            flags |= GEMM_1_T, atrans = true;
+        // if (GET_PARAM(1))
+            // flags |= GEMM_1_T, atrans = true;
         if (GET_PARAM(2))
             flags |= GEMM_2_T, btrans = true;
-        if (GET_PARAM(3))
-            flags |= GEMM_3_T, ctrans = true;
+        // if (GET_PARAM(3))
+            // flags |= GEMM_3_T, ctrans = true;
     }
 
     void generateTestData()
@@ -141,8 +141,8 @@ OCL_TEST_P(Gemm, Accuracy)
 }
 
 OCL_INSTANTIATE_TEST_CASE_P(Core, Gemm, ::testing::Combine(
-                            testing::Values(CV_32FC1, CV_32FC2, CV_64FC1, CV_64FC2),
-                            Bool(), Bool(), Bool(), Bool()));
+    testing::Values(CV_32FC1, CV_32FC2, CV_64FC1, CV_64FC2),
+                    Bool(), Bool(), Bool(), Bool()));
 
 } } // namespace cvtest::ocl
 
