@@ -1561,6 +1561,97 @@ void cv::meanStdDev( InputArray _src, OutputArray _mean, OutputArray _sdv, Input
 *                                       minMaxLoc                                        *
 \****************************************************************************************/
 
+template <typename T, typename WT>
+struct MinMaxIdx_SIMD
+{
+    int operator () (const T *, const uchar *, WT *, WT *,
+                     size_t *, size_t *, int, size_t) const
+    {
+        return 0;
+    }
+};
+
+#if CV_NEON
+
+template <>
+struct MinMaxIdx_SIMD<uchar, int>
+{
+    int operator () (const uchar * src, const uchar * mask, int * _minVal, int * _maxVal,
+                     size_t * _minIdx, size_t * _maxIdx, int len, size_t startIdx) const
+    {
+        int x = 0;
+        if (mask || (unsigned int)len > std::numeric_limits<uint>::max())
+            return x;
+
+        uint CV_DECL_ALIGNED(16) pmaxidx[4] = { 0, 1, 2, 3 }, pminidx[4];
+
+        uint8x16_t v_maxval = vdupq_n_u8(*_maxVal);
+        uint8x16_t v_minval = vdupq_n_u8(*_minVal);
+        uint32x4_t v_x = vld1q_u32(pmaxidx), v_inc = vdupq_n_u32(4u);
+        uint32x4x4_t v_maxidx, v_minidx;
+
+        for( ; x <= len - 16; x += 16 )
+        {
+            uint8x16_t v_src = vld1q_u8(src + x);
+            uint8x16_t v_cmp_max = vcgtq_u8(v_src, v_maxval);
+            uint8x16_t v_cmp_min = vcgtq_u8(v_minval, v_src);
+
+            v_minval = vbslq_u8(v_cmp_min, v_src, v_minval);
+            v_maxval = vbslq_u8(v_cmp_max, v_src, v_maxval);
+
+            uint16x8_t v_cmp_min_low = vmovl_u8(vget_low_u8(v_cmp_min));
+            uint16x8_t v_cmp_max_low = vmovl_u8(vget_low_u8(v_cmp_max));
+
+            v_maxidx.val[0] = vbslq_u32(vmovl_u16(vget_low_u16(v_cmp_max_low)), v_maxidx.val[0], v_x);
+            v_minidx.val[0] = vbslq_u32(vmovl_u16(vget_low_u16(v_cmp_min_low)), v_minidx.val[0], v_x);
+            v_x = vaddq_u32(v_x, v_inc);
+
+            v_maxidx.val[1] = vbslq_u32(vmovl_u16(vget_high_u16(v_cmp_max_low)), v_maxidx.val[1], v_x);
+            v_minidx.val[1] = vbslq_u32(vmovl_u16(vget_high_u16(v_cmp_min_low)), v_minidx.val[1], v_x);
+            v_x = vaddq_u32(v_x, v_inc);
+
+            v_cmp_min_low = vmovl_u8(vget_high_u8(v_cmp_min));
+            v_cmp_max_low = vmovl_u8(vget_high_u8(v_cmp_max));
+
+            v_maxidx.val[2] = vbslq_u32(vmovl_u16(vget_low_u16(v_cmp_max_low)), v_maxidx.val[2], v_x);
+            v_minidx.val[2] = vbslq_u32(vmovl_u16(vget_low_u16(v_cmp_min_low)), v_minidx.val[2], v_x);
+            v_x = vaddq_u32(v_x, v_inc);
+
+            v_maxidx.val[3] = vbslq_u32(vmovl_u16(vget_high_u16(v_cmp_max_low)), v_maxidx.val[3], v_x);
+            v_minidx.val[3] = vbslq_u32(vmovl_u16(vget_high_u16(v_cmp_min_low)), v_minidx.val[3], v_x);
+            v_x = vaddq_u32(v_x, v_inc);
+        }
+
+        uchar CV_DECL_ALIGNED(16) pmaxval[16], pminval[16];
+        vst1q_u8(pminval, v_minval);
+        vst1q_u8(pmaxval, v_maxval);
+
+        for (int i = 0, gi = 0; i < 4; ++i)
+        {
+            vst1q_u32(pmaxidx, v_maxidx.val[i]);
+            vst1q_u32(pminidx, v_minidx.val[i]);
+
+            for (int j = 0; j < 4; ++j, ++gi)
+            {
+                if (*_minVal >= pminval[j])
+                {
+                    *_minVal = pminval[j];
+                    *_minIdx = std::min(*_minIdx, startIdx + pminval[j]);
+                }
+                if (*_maxVal >= pmaxval[j])
+                {
+                    *_maxVal = pmaxval[j];
+                    *_maxIdx = std::min(*_maxIdx, startIdx + pmaxval[j]);
+                }
+            }
+        }
+
+        return x;
+    }
+};
+
+#endif
+
 namespace cv
 {
 
@@ -1568,12 +1659,14 @@ template<typename T, typename WT> static void
 minMaxIdx_( const T* src, const uchar* mask, WT* _minVal, WT* _maxVal,
             size_t* _minIdx, size_t* _maxIdx, int len, size_t startIdx )
 {
+    MinMaxIdx_SIMD<T, WT> vop;
+    int i = vop(src, mask, _minVal, _maxVal, _minIdx, _maxIdx, len, startIdx);
     WT minVal = *_minVal, maxVal = *_maxVal;
     size_t minIdx = *_minIdx, maxIdx = *_maxIdx;
 
     if( !mask )
     {
-        for( int i = 0; i < len; i++ )
+        for( ; i < len; i++ )
         {
             T val = src[i];
             if( val < minVal )
@@ -1590,7 +1683,7 @@ minMaxIdx_( const T* src, const uchar* mask, WT* _minVal, WT* _maxVal,
     }
     else
     {
-        for( int i = 0; i < len; i++ )
+        for( ; i < len; i++ )
         {
             T val = src[i];
             if( mask[i] && val < minVal )
