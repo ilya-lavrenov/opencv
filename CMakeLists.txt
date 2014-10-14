@@ -131,6 +131,7 @@ OCV_OPTION(WITH_GSTREAMER_0_10 "Enable Gstreamer 0.10 support (instead of 1.x)" 
 OCV_OPTION(WITH_GTK            "Include GTK support"                         ON   IF (UNIX AND NOT APPLE AND NOT ANDROID) )
 OCV_OPTION(WITH_GTK_2_X        "Use GTK version 2"                           OFF  IF (UNIX AND NOT APPLE AND NOT ANDROID) )
 OCV_OPTION(WITH_IPP            "Include Intel IPP support"                   ON   IF (X86_64 OR X86) )
+OCV_OPTION(WITH_FASTCV         "Include Qualcomm FastCV support"             ON)
 OCV_OPTION(WITH_JASPER         "Include JPEG2K support"                      ON   IF (NOT IOS) )
 OCV_OPTION(WITH_JPEG           "Include JPEG support"                        ON)
 OCV_OPTION(WITH_WEBP           "Include WebP support"                        ON   IF (NOT IOS) )
@@ -934,7 +935,7 @@ if(DEFINED WITH_XINE)
 endif(DEFINED WITH_XINE)
 
 if(DEFINED WITH_INTELPERC)
-  status("    Intel PerC:"     HAVE_INTELPERC      THEN "YES"                                 ELSE NO)
+  status("    Intel PerC:"     HAVE_INTELPERC      THEN YES                                 ELSE NO)
 endif(DEFINED WITH_INTELPERC)
 
 
@@ -949,8 +950,15 @@ else()
   status("    Use IPP:"   WITH_IPP AND NOT HAVE_IPP THEN "IPP not found" ELSE NO)
 endif()
 
+if(WITH_FASTCV AND HAVE_FASTCV)
+  status("    Use FastCV:" "${FASTCV_VERSION_STR} [${FASTCV_VERSION_MAJOR}.${FASTCV_VERSION_MINOR}.${FASTCV_VERSION_BUILD}]")
+  status("         at:" "${FASTCV_ROOT_DIR}")
+else()
+  status("    Use FastCV:"   WITH_FASTCV AND NOT HAVE_FASTCV THEN "Qualcomm FastCV not found" ELSE NO)
+endif()
+
 if(DEFINED WITH_IPP_A)
-status("    Use IPP Async:"  HAVE_IPP_A       THEN "YES" ELSE NO)
+  status("    Use IPP Async:"  HAVE_IPP_A       THEN "YES" ELSE NO)
 endif(DEFINED WITH_IPP_A)
 
 status("    Use Eigen:"      HAVE_EIGEN       THEN "YES (ver ${EIGEN_WORLD_VERSION}.${EIGEN_MAJOR_VERSION}.${EIGEN_MINOR_VERSION})" ELSE NO)

@@ -27,6 +27,17 @@ if(WITH_IPP_A)
    endif()
 endif(WITH_IPP_A)
 
+# --- FastCV ---
+
+if(WITH_FASTCV)
+  include("${OpenCV_SOURCE_DIR}/cmake/OpenCVFindFastCV.cmake")
+  if(HAVE_FASTCV)
+    ocv_include_directories(${FASTCV_INCLUDE_DIRS})
+    link_directories(${FASTCV_LIBRARIES})
+    set(OPENCV_LINKER_LIBS ${OPENCV_LINKER_LIBS} ${FASTCV_LIBRARIES})
+   endif()
+endif(WITH_FASTCV)
+
 # --- CUDA ---
 if(WITH_CUDA)
   include("${OpenCV_SOURCE_DIR}/cmake/OpenCVDetectCUDA.cmake")

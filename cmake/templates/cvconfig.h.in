@@ -67,6 +67,9 @@
 /* Eigen Matrix & Linear Algebra Library */
 #cmakedefine HAVE_EIGEN
 
+/* Qualcomm FastCV library */
+#cmakedefine HAVE_FASTCV
+
 /* FFMpeg video library */
 #cmakedefine HAVE_FFMPEG
 

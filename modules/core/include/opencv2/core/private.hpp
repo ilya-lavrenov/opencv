@@ -258,6 +258,13 @@ static inline IppDataType ippiGetDataType(int depth)
 #  define IPPI_CALL(func) CV_Assert((func) >= 0)
 #endif
 
+#ifdef HAVE_FASTCV
+#  ifdef _MSC_VER
+#    include <stdint_.h>
+#  endif
+#  include <fastcv.h>
+#endif
+
 /* IPP-compatible return codes */
 typedef enum CvStatus
 {

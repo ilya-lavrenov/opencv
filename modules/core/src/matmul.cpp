@@ -2820,6 +2820,18 @@ dotProd_(const T* src1, const T* src2, int len)
 static double dotProd_8u(const uchar* src1, const uchar* src2, int len)
 {
     double r = 0;
+    int i = 0;
+#if defined HAVE_FASTCV
+    int _blockSize = 1 << 16;
+
+    while (i < len)
+    {
+        r += fcvDotProductu8(src1 + i, src2 + i, std::min(_blockSize, len - i));
+        i += _blockSize;
+    }
+
+    return r;
+#endif
 #if ARITHM_USE_IPP && 0
     if (0 <= ippiDotProd_8u64f_C1R(src1, (int)(len*sizeof(src1[0])),
                                    src2, (int)(len*sizeof(src2[0])),
@@ -2827,8 +2839,6 @@ static double dotProd_8u(const uchar* src1, const uchar* src2, int len)
         return r;
     setIppErrorStatus();
 #endif
-    int i = 0;
-
 #if CV_SSE2
     if( USE_SSE2 )
     {
