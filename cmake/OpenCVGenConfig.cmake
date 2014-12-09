@@ -81,6 +81,9 @@ if(ANDROID)
   string(REPLACE - _ modules_file_suffix "_${ANDROID_NDK_ABI_NAME}")
 endif()
 
+list(APPEND OpenCVModules_TARGETS ${OpenCVExtraTargets})
+list(REMOVE_DUPLICATES OpenCVModules_TARGETS)
+
 export(TARGETS ${OpenCVModules_TARGETS} FILE "${CMAKE_BINARY_DIR}/OpenCVModules${modules_file_suffix}.cmake")
 
 configure_file("${OpenCV_SOURCE_DIR}/cmake/templates/OpenCVConfig.cmake.in" "${CMAKE_BINARY_DIR}/OpenCVConfig.cmake" @ONLY)
