@@ -44,6 +44,8 @@
 
 #undef HAVE_IPP
 
+#include "carotene/functions.hpp"
+
 namespace cv { namespace hal {
 
 ///////////////////////////////////// ATAN2 ////////////////////////////////////
@@ -68,8 +70,15 @@ void fastAtan2(const float *Y, const float *X, float *angle, int len, bool angle
     float scale = angleInDegrees ? 1 : (float)(CV_PI/180);
 
 #ifdef HAVE_TEGRA_OPTIMIZATION
-    if (tegra::useTegra() && tegra::FastAtan2_32f(Y, X, angle, len, scale))
-        return;
+//    if (tegra::useTegra() && tegra::FastAtan2_32f(Y, X, angle, len, scale))
+    if (carotene::isSupportedConfiguration())
+    {
+        return carotene::phase(carotene::Size2D(len, 1),
+                               Y, 0,
+                               X, 0,
+                               angle, 0,
+                               scale);
+    }
 #endif
 
 #if CV_SSE2
