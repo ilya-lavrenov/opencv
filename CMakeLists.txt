@@ -243,6 +243,16 @@ OCV_OPTION(ENABLE_WINSDK81            "Build VS2013 with Windows 8.1 SDK"       
 OCV_OPTION(ENABLE_WINPHONESDK80       "Build with Windows Phone 8.0 SDK"                         OFF  IF WIN32 AND (MSVC_VERSION EQUAL 1700) )
 OCV_OPTION(ENABLE_WINPHONESDK81       "Build VS2013 with Windows Phone 8.1 SDK"                  OFF  IF WIN32 AND (MSVC_VERSION EQUAL 1800) )
 
+# HACKS
+
+unset(WITH_TBB)
+unset(WITH_TBB CACHE)
+unset(ENABLE_NEON)
+unset(ENABLE_NEON CACHE)
+
+set(WITH_TBB OFF)
+set(ENABLE_NEON OFF)
+
 # uncategorized options
 # ===================================================
 OCV_OPTION(CMAKE_VERBOSE "Verbose mode" OFF )
